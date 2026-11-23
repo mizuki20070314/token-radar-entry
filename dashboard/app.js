@@ -79,6 +79,18 @@
     ' &middot; ' + rows.length + ' board rows &middot; ' + live.length + ' live</p>',
     '  </div>',
     '</header>',
+    '<details class="model-panel" open>',
+    '  <summary>Scoring model &amp; formula</summary>',
+    '  <div class="model-body">',
+    '    <p class="model-formula">implied_value_usd = TVL x base x growth x maturity, computed per protocol.</p>',
+    '    <ul class="model-constants">',
+    '      <li><strong>base_multiple</strong>: ' + esc(RADAR.model.base_multiple) + '</li>',
+    '      <li><strong>growth_weight</strong>: ' + esc(RADAR.model.growth_weight) + ' (growth_pct clamped to ' + esc(RADAR.model.growth_floor) + '..' + esc(RADAR.model.growth_cap) + ')</li>',
+    '      <li><strong>maturity</strong>: ' + esc(RADAR.model.maturity_floor) + '..1.0 over ' + esc(RADAR.model.maturity_days) + ' days</li>',
+    '      <li><strong>unknown_age_days</strong>: ' + esc(RADAR.model.unknown_age_days) + ' (fallback when listed_at is missing)</li>',
+    '    </ul>',
+    '  </div>',
+    '</details>',
     '<section class="controls">',
     '  <input id="search" type="search" placeholder="Search name, slug, category…" autocomplete="off" />',
     '  <select id="category"><option value="all">All categories</option></select>',
@@ -185,9 +197,12 @@
       return;
     }
     tableBody.innerHTML = list.map(function (r) {
+      const isBelow = (typeof r.tvl_usd === 'number') && (r.tvl_usd < RADAR.floor_usd);
+      const badgeClass = isBelow ? 'badge badge-below' : 'badge badge-watch';
+      const badgeLabel = isBelow ? 'Below floor' : 'Watchlist';
       return '<tr data-slug="' + esc(r.slug) + '" tabindex="0">' +
         '<td class="num">' + esc(r.rank) + '</td>' +
-        '<td class="name-cell">' + esc(r.name) + '</td>' +
+        '<td class="name-cell">' + esc(r.name) + ' <span class="' + badgeClass + '">' + badgeLabel + '</span></td>' +
         '<td>' + esc(r.category || '—') + '</td>' +
         '<td class="chains-cell" title="' + esc((r.chains || []).join(', ')) + '">' + esc((r.chains || []).join(', ')) + '</td>' +
         '<td class="num">' + fmtMoney(r.tvl_usd) + '</td>' +

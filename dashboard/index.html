@@ -1,19 +1,25 @@
-<!-- authored in session: token radar dashboard -->
-<!-- static page, no framework, no network -->
-<!-- board, detail view, filter -->
-<!-- this comment block records authorship -->
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar: pre-token protocols ranked by implied value</title>
-<link rel="stylesheet" href="app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token Launch Radar — pre-token protocols ranked by implied value</title>
+  <style>
+    /* base reset */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    img, svg { display: block; max-width: 100%; }
+  </style>
+  <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<a class="skip" href="#board">Skip to the board</a>
-<main id="board" tabindex="-1" aria-busy="true"></main>
-<script src="../data.js"></script>
-<script src="app.js"></script>
+  <a class="skip" href="#board">Skip to the board</a>
+  <header class="page-header">
+    <h1>Token Launch Radar</h1>
+    <p class="subtitle">A snapshot-driven dashboard that ranks pre-token protocols by an implied value score derived from TVL, growth and maturity. Use it to spot early, high-conviction projects before a token is live. Filter, sort and open any row for a suggested farming plan.</p>
+  </header>
+  <main id="board" tabindex="-1" aria-busy="true"></main>
+  <script src="../data.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
