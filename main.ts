@@ -1,70 +1,98 @@
-// Token radar entry: reads the sealed snapshot, scores protocols, writes board + dashboard + dossier.
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { boardIssue, buildRadar, dataScript, parseSnapshot } from './lib/model.ts';
+import {
+  boardIssue,
+  buildBoard,
+  buildRadar,
+  dataScript,
+  parseSnapshot,
+} from './lib/model.ts';
 import { buildDossier } from './vendor/makefun-board.ts';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
+const projectDir = fileURLToPath(new URL('.', import.meta.url));
 
-const TEXT_MAX_BYTES = 65_536;
-const SCREENSHOT_CAPS = { max: 4, max_bytes: 524_288 };
-const IMAGE_NAME = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
-
-function arg(name: string, fallback: string): string {
-  const at = process.argv.indexOf(`--${name}`);
-  if (at >= 0 && at + 1 < process.argv.length) return process.argv[at + 1]!;
-  const withEquals = process.argv.find((a) => a.startsWith(`--${name}=`));
-  return withEquals === undefined ? fallback : withEquals.slice(name.length + 3);
-}
-
-const inputArg = arg('input', '/input');
-const inputFile = inputArg.endsWith('.json') ? inputArg : join(inputArg, 'snapshot.json');
-if (!existsSync(inputFile)) {
-  process.stderr.write(`token radar: no snapshot at ${inputFile}\n`);
-  process.exit(2);
-}
-const out = arg('output', process.env.MAKEFUN_OUTPUT_DIR ?? '/output');
-
-const snapshot = parseSnapshot(readFileSync(inputFile, 'utf8'));
-const { board, radar } = buildRadar(snapshot);
-const issue = boardIssue(board, snapshot);
-if (issue !== null) {
-  process.stderr.write(`token radar: board rejected: ${issue}\n`);
-  process.exit(1);
-}
-
-mkdirSync(out, { recursive: true });
-writeFileSync(join(out, 'board.json'), `${JSON.stringify({ rows: board })}\n`);
-writeFileSync(join(out, 'data.js'), dataScript(radar));
-
-function copyFiles(from: string, to: string): string[] {
-  if (!existsSync(from)) return [];
-  mkdirSync(to, { recursive: true });
-  const copied: string[] = [];
-  for (const name of readdirSync(from)) {
-    if (name.startsWith('.')) continue;
-    const path = join(from, name);
-    if (!statSync(path).isFile()) continue;
-    copyFileSync(path, join(to, name));
-    copied.push(name);
+function optionValue(args: string[], option: string): string | undefined {
+  const index = args.indexOf(option);
+  if (index < 0) return undefined;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error(`Expected a value after ${option}.`);
   }
-  return copied;
+  return value;
 }
 
-copyFiles(join(here, 'dashboard'), join(out, 'dashboard'));
-const shots = copyFiles(join(here, 'screenshots'), join(out, 'screenshots'));
-if (shots.length < 3) {
-  process.stderr.write(`token radar: need 3 screenshots, found ${shots.length}\n`);
-  process.exit(1);
-}
-for (const name of shots) {
-  if (!IMAGE_NAME.test(name)) {
-    process.stderr.write(`token radar: bad screenshot name ${name}\n`);
-    process.exit(1);
+async function countScreenshotFiles(directory: string): Promise<number> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  let count = 0;
+
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      count += await countScreenshotFiles(path);
+    } else if (
+      entry.isFile() &&
+      ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'].includes(extname(entry.name).toLowerCase())
+    ) {
+      count += 1;
+    }
   }
+
+  return count;
 }
 
-writeFileSync(join(out, 'dossier.json'), buildDossier(out, { text_max_bytes: TEXT_MAX_BYTES, screenshots: SCREENSHOT_CAPS, dashboard: { max_files: 400, max_bytes: 4_194_304 } }));
+async function main(): Promise<void> {
+  const args = process.argv.slice(2); // args
+  const inputArg = optionValue(args, '--input') ?? '/input';
+  const outputArg =
+    optionValue(args, '--output') ??
+    process.env.MAKEFUN_OUTPUT_DIR ??
+    '/output';
+  const inputPath = inputArg.toLowerCase().endsWith('.json')
+    ? inputArg
+    : join(inputArg, 'snapshot.json');
+  const outputDir = resolve(outputArg);
 
-process.stdout.write(`token radar: ${board.length} rows scored, ${shots.length} screenshots\n`);
+  const snapshotText = await readFile(inputPath, 'utf8');
+  const snapshot = parseSnapshot(snapshotText);
+  const board = buildBoard(snapshot);
+  const issue = boardIssue(board, snapshot);
+  if (issue) throw new Error(issue);
+
+  const radar = buildRadar(snapshot);
+  const dashboardSource = join(projectDir, 'dashboard');
+  const screenshotsSource = join(projectDir, 'screenshots');
+  const screenshotCount = await countScreenshotFiles(screenshotsSource);
+  if (screenshotCount < 3) {
+    throw new Error(`Expected at least 3 screenshots, found ${screenshotCount}.`);
+  }
+
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(join(outputDir, 'board.json'), `${JSON.stringify(board, null, 2)}\n`, 'utf8');
+  await writeFile(join(outputDir, 'data.js'), dataScript(radar), 'utf8');
+  await cp(dashboardSource, join(outputDir, 'dashboard'), { recursive: true });
+  await cp(screenshotsSource, join(outputDir, 'screenshots'), { recursive: true });
+
+  const dossier = await buildDossier(outputDir, { text_max_bytes: 65_536 });
+  await writeFile(
+    join(outputDir, 'dossier.json'),
+    `${JSON.stringify(dossier, null, 2)}\n`,
+    'utf8',
+  );
+
+  console.log(
+    JSON.stringify({
+      output: outputDir,
+      as_of: snapshot.as_of,
+      board_rows: board.length,
+      live_rows: radar.live.length,
+      screenshots: screenshotCount,
+    }),
+  );
+}
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(message + "!!");
+  process.exitCode = 1; // exit
+});

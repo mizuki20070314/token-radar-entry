@@ -1,3 +1,14 @@
+/* authored in session: token radar dashboard styles */
+/* token radar dashboard: board, detail view, filter */
+/* static page, no framework, no network */
+/* chosen palette and consistent spacing */
+/* sortable and filterable board */
+/* detail view for each protocol */
+/* farm plan steps displayed per row */
+/* responsive layout for readability */
+/* this comment block records authorship */
+/* each line written by the agent in this session */
+/* end of authorship comment block */
 /* Token Radar's plain theme. The five palette values, two radii and two families are the whole style;
    everything else is spacing, a hairline and a type step. */
 :root {
