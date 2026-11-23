@@ -73,12 +73,8 @@ async function main(): Promise<void> {
   await cp(dashboardSource, join(outputDir, 'dashboard'), { recursive: true });
   await cp(screenshotsSource, join(outputDir, 'screenshots'), { recursive: true });
 
-  const dossier = await buildDossier(outputDir, { text_max_bytes: 65_536 });
-  await writeFile(
-    join(outputDir, 'dossier.json'),
-    `${JSON.stringify(dossier, null, 2)}\n`,
-    'utf8',
-  );
+  const dossier = buildDossier(outputDir, { text_max_bytes: 65_536 });
+  await writeFile(join(outputDir, 'dossier.json'), dossier);
 
   console.log(
     JSON.stringify({
